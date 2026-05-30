@@ -29,4 +29,12 @@ app.UseCors("AllowAll");
 app.MapControllers();
 app.MapHub<GameHub>("/gamehub"); 
 
+// --- सर्व्हर चालू झाल्यावर आपोआप डेटाबेस बनवणे (Cloud साठी) ---
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var context = services.GetRequiredService<AppDbContext>();
+    context.Database.EnsureCreated(); // जर डेटाबेस नसेल, तर नवीन बनव!
+}
+
 app.Run();
