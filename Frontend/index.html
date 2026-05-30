@@ -43,7 +43,7 @@
     </div>
 
     <script>
-        const API_BASE_URL = "http://localhost:5206/api";
+       const API_BASE_URL = "https://live-gaming-backend.onrender.com/api";
         let userEmail = "";
         let lastShooter = ""; 
         let wasMoving = false; 
@@ -73,7 +73,7 @@
             } catch (error) {}
         }
 
-        const connection = new signalR.HubConnectionBuilder().withUrl("http://localhost:5206/gamehub").build();
+        const connection = new signalR.HubConnectionBuilder().withUrl("https://live-gaming-backend.onrender.com/gamehub").build();
 
         async function startSignalR() {
             try {
