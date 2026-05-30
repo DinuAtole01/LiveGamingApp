@@ -7,14 +7,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.12/signalr.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background-color: #0f0f13; color: white; text-align: center; padding-top: 10px; }
-        .card { background: #1c1c24; padding: 25px; border-radius: 15px; width: 500px; margin: auto; box-shadow: 0 8px 25px rgba(0,255,136,0.1); border: 1px solid #2d2d3a; }
+        .card { background: #1c1c24; padding: 25px; border-radius: 15px; width: 500px; margin: auto; box-shadow: 0 8px 25px rgba(0,255,136,0.1); border: 1px solid #2d2d3a; max-width: 90%; }
         h1 { color: #00ff88; margin-bottom: 5px; }
         input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 8px; border: none; background: #2a2a35; color: white; }
         button { width: 95%; padding: 12px; margin: 10px 0; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
         .btn-green { background-color: #00ff88; color: black; }
         .btn-green:hover { background-color: #00cc6a; }
         .hidden { display: none; }
-        canvas { background-color: #e6c28a; border-radius: 5px; border: 15px solid #4a2511; box-shadow: 0 0 20px rgba(0,255,136,0.2); cursor: crosshair; margin-top: 15px; touch-action: none; }
+        canvas { background-color: #e6c28a; border-radius: 5px; border: 15px solid #4a2511; box-shadow: 0 0 20px rgba(0,255,136,0.2); cursor: crosshair; margin-top: 15px; touch-action: none; max-width: 100%; height: auto;}
     </style>
 </head>
 <body>
@@ -108,12 +108,14 @@
             }
         });
 
-        // --- अचूक माऊस ट्रॅकिंग फंक्शन ---
         function getMousePos(evt) {
             const rect = canvas.getBoundingClientRect();
+            // Scale touch/mouse coordinates to canvas actual size
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
             return {
-                x: evt.clientX - rect.left,
-                y: evt.clientY - rect.top
+                x: (evt.clientX - rect.left) * scaleX,
+                y: (evt.clientY - rect.top) * scaleY
             };
         }
 
@@ -121,8 +123,7 @@
             if(!gameActive) return;
             let pos = getMousePos(event);
             
-            // क्लिक स्ट्रायकरवर आहे का? (थोडं एक्स्ट्रा मार्जिन +5 दिलंय)
-            if (Math.hypot(pos.x - striker.x, pos.y - striker.y) <= striker.radius + 5) {
+            if (Math.hypot(pos.x - striker.x, pos.y - striker.y) <= striker.radius + 15) {
                 isDragging = true; 
                 dragStartX = pos.x; 
                 dragStartY = pos.y;
@@ -146,7 +147,6 @@
                 let velocityX = (dragStartX - mouseX) * powerMultiplier;
                 let velocityY = (dragStartY - mouseY) * powerMultiplier;
                 
-                // जर चुकून फक्त क्लिक झालं असेल आणि ओढलं नसेल, तर शॉट मारू नका
                 if(Math.abs(velocityX) < 0.5 && Math.abs(velocityY) < 0.5) return;
 
                 lastShooter = userEmail;
@@ -156,6 +156,33 @@
                 try { await connection.invoke("ShootStriker", userEmail, velocityX, velocityY); } catch (err) {}
             }
         });
+
+        // --- Mobile Touch Support (टचला माऊसमध्ये कन्व्हर्ट करणे) ---
+        canvas.addEventListener("touchstart", function (e) {
+            e.preventDefault(); 
+            var touch = e.touches[0];
+            var mouseEvent = new MouseEvent("mousedown", {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        }, { passive: false });
+
+        canvas.addEventListener("touchmove", function (e) {
+            e.preventDefault();
+            var touch = e.touches[0];
+            var mouseEvent = new MouseEvent("mousemove", {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        }, { passive: false });
+
+        canvas.addEventListener("touchend", function (e) {
+            e.preventDefault();
+            var mouseEvent = new MouseEvent("mouseup", {});
+            canvas.dispatchEvent(mouseEvent);
+        }, { passive: false });
 
         async function handleWin() {
             gameActive = false;
@@ -216,7 +243,6 @@
                 }
             }
 
-            // Aiming Line (Dotted Line)
             if (isDragging) {
                 ctx.beginPath(); 
                 ctx.moveTo(striker.x, striker.y); 
