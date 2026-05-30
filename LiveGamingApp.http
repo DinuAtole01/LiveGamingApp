@@ -1,0 +1,6 @@
+@LiveGamingApp_HostAddress = http://localhost:5206
+
+GET {{LiveGamingApp_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

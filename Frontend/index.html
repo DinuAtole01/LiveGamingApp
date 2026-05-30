@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Gaming Hub</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.12/signalr.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #0f0f13; color: white; text-align: center; padding-top: 10px; }
+        .card { background: #1c1c24; padding: 25px; border-radius: 15px; width: 500px; margin: auto; box-shadow: 0 8px 25px rgba(0,255,136,0.1); border: 1px solid #2d2d3a; }
+        h1 { color: #00ff88; margin-bottom: 5px; }
+        input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 8px; border: none; background: #2a2a35; color: white; }
+        button { width: 95%; padding: 12px; margin: 10px 0; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-green { background-color: #00ff88; color: black; }
+        .btn-green:hover { background-color: #00cc6a; }
+        .hidden { display: none; }
+        canvas { background-color: #e6c28a; border-radius: 5px; border: 15px solid #4a2511; box-shadow: 0 0 20px rgba(0,255,136,0.2); cursor: crosshair; margin-top: 15px; touch-action: none; }
+    </style>
+</head>
+<body>
+
+    <h1>🎮 Live Carrom Engine (Final)</h1>
+
+    <div class="card" id="loginBox">
+        <h2>Player Login</h2>
+        <input type="email" id="emailInput" placeholder="Email (e.g. bhau@gaming.com)">
+        <input type="password" id="passwordInput" placeholder="Password (Secret@123)">
+        <button class="btn-green" onclick="loginUser()">Enter Arena</button>
+    </div>
+
+    <div class="card hidden" id="dashboardBox">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="color: #00ff88; margin: 0;">Hey, <span id="playerName"></span>! 🏆</h2>
+            <div style="background: #2a2a35; padding: 5px 15px; border-radius: 20px; font-weight: bold; border: 1px solid #00ff88;">
+                <span id="walletStatus" style="color: white;">₹0.00</span>
+            </div>
+        </div>
+        <p style="color: #ccc; font-size: 14px; margin-top: 5px;">Connection: <span id="connectionStatus" style="color: yellow;">Connecting...</span></p>
+        
+        <hr style="border: 1px solid #333; margin: 10px 0;">
+        <h3 style="margin: 0; color: white;">🎯 Pot the Red Queen to Win ₹20!</h3>
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+    </div>
+
+    <script>
+        const API_BASE_URL = "http://localhost:5206/api";
+        let userEmail = "";
+        let lastShooter = ""; 
+        let wasMoving = false; 
+
+        async function loginUser() {
+            const email = document.getElementById("emailInput").value || userEmail;
+            const password = document.getElementById("passwordInput").value || "Secret@123";
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/User/login`, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ Email: email, PasswordHash: password })
+                });
+
+                if (response.ok) {
+                    userEmail = email;
+                    document.getElementById("loginBox").classList.add("hidden");
+                    document.getElementById("dashboardBox").classList.remove("hidden");
+                    document.getElementById("playerName").innerText = email.split('@')[0];
+                    let resText = await response.text();
+                    document.getElementById("walletStatus").innerText = `₹${resText.split(': ')[1]}`;
+
+                    if(document.getElementById("connectionStatus").innerText !== "Online 🟢") {
+                        startSignalR();
+                    }
+                }
+            } catch (error) {}
+        }
+
+        const connection = new signalR.HubConnectionBuilder().withUrl("http://localhost:5206/gamehub").build();
+
+        async function startSignalR() {
+            try {
+                await connection.start();
+                document.getElementById("connectionStatus").innerText = "Online 🟢";
+                document.getElementById("connectionStatus").style.color = "#00ff88";
+            } catch (err) {}
+        }
+
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        let striker = { x: 200, y: 320, radius: 18, vx: 0, vy: 0, color: '#ffffff' };
+        let queen = { x: 200, y: 200, radius: 13, vx: 0, vy: 0, color: '#ff2a2a' };
+        let pockets = [ { x: 20, y: 20, radius: 25 }, { x: 380, y: 20, radius: 25 }, { x: 20, y: 380, radius: 25 }, { x: 380, y: 380, radius: 25 } ];
+
+        let isDragging = false; 
+        let dragStartX = 0; let dragStartY = 0; 
+        let mouseX = 0; let mouseY = 0; 
+        let gameActive = true;
+
+        connection.on("ReceiveShoot", (user, vx, vy) => {
+            lastShooter = user;
+            striker.vx = vx; striker.vy = vy;
+        });
+
+        connection.on("ReceiveSync", (user, sX, sY, qX, qY) => {
+            if (user !== userEmail) { 
+                striker.x = sX; striker.y = sY;
+                queen.x = qX; queen.y = qY;
+                striker.vx = 0; striker.vy = 0; queen.vx = 0; queen.vy = 0;
+            }
+        });
+
+        // --- अचूक माऊस ट्रॅकिंग फंक्शन ---
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: evt.clientX - rect.left,
+                y: evt.clientY - rect.top
+            };
+        }
+
+        canvas.addEventListener("mousedown", (event) => {
+            if(!gameActive) return;
+            let pos = getMousePos(event);
+            
+            // क्लिक स्ट्रायकरवर आहे का? (थोडं एक्स्ट्रा मार्जिन +5 दिलंय)
+            if (Math.hypot(pos.x - striker.x, pos.y - striker.y) <= striker.radius + 5) {
+                isDragging = true; 
+                dragStartX = pos.x; 
+                dragStartY = pos.y;
+                mouseX = pos.x;
+                mouseY = pos.y;
+            }
+        });
+
+        canvas.addEventListener("mousemove", (event) => {
+            if (isDragging) {
+                let pos = getMousePos(event);
+                mouseX = pos.x; 
+                mouseY = pos.y;
+            }
+        });
+
+        canvas.addEventListener("mouseup", async () => {
+            if (isDragging && gameActive) {
+                isDragging = false;
+                let powerMultiplier = 0.2; 
+                let velocityX = (dragStartX - mouseX) * powerMultiplier;
+                let velocityY = (dragStartY - mouseY) * powerMultiplier;
+                
+                // जर चुकून फक्त क्लिक झालं असेल आणि ओढलं नसेल, तर शॉट मारू नका
+                if(Math.abs(velocityX) < 0.5 && Math.abs(velocityY) < 0.5) return;
+
+                lastShooter = userEmail;
+                striker.vx = velocityX; 
+                striker.vy = velocityY;
+                
+                try { await connection.invoke("ShootStriker", userEmail, velocityX, velocityY); } catch (err) {}
+            }
+        });
+
+        async function handleWin() {
+            gameActive = false;
+            if (lastShooter === userEmail) {
+                alert("🏆 KADAK! You potted the Red Queen! ₹20 will be added to your wallet.");
+                await fetch(`${API_BASE_URL}/Game/declare-winner`, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ Player1Email: userEmail, Player2Email: "p2@gaming.com", WinnerEmail: userEmail, EntryFee: 11.2 }) 
+                });
+                loginUser(); 
+            } else {
+                alert("😔 Oh no! Rival potted the Queen and took the money!");
+                loginUser();
+            }
+            setTimeout(() => {
+                queen.x = 200; queen.y = 200; queen.vx = 0; queen.vy = 0;
+                striker.x = 200; striker.y = 320; striker.vx = 0; striker.vy = 0;
+                gameActive = true;
+            }, 3000);
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            pockets.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fillStyle = '#222'; ctx.fill(); });
+            ctx.beginPath(); ctx.arc(200, 200, 40, 0, Math.PI * 2); ctx.strokeStyle = '#4a2511'; ctx.lineWidth = 2; ctx.stroke();
+
+            if (gameActive) {
+                let isMoving = (striker.vx !== 0 || striker.vy !== 0 || queen.vx !== 0 || queen.vy !== 0);
+
+                striker.x += striker.vx; striker.y += striker.vy; queen.x += queen.vx; queen.y += queen.vy;
+                striker.vx *= 0.98; striker.vy *= 0.98; queen.vx *= 0.98; queen.vy *= 0.98;
+
+                if(Math.abs(striker.vx) < 0.1) striker.vx = 0; if(Math.abs(striker.vy) < 0.1) striker.vy = 0;
+                if(Math.abs(queen.vx) < 0.1) queen.vx = 0; if(Math.abs(queen.vy) < 0.1) queen.vy = 0;
+
+                [striker, queen].forEach(obj => {
+                    if (obj.x - obj.radius < 0 || obj.x + obj.radius > canvas.width) { obj.vx *= -1; obj.x = Math.max(obj.radius, Math.min(obj.x, canvas.width - obj.radius)); }
+                    if (obj.y - obj.radius < 0 || obj.y + obj.radius > canvas.height) { obj.vy *= -1; obj.y = Math.max(obj.radius, Math.min(obj.y, canvas.height - obj.radius)); }
+                });
+
+                let dx = queen.x - striker.x; let dy = queen.y - striker.y; let distance = Math.hypot(dx, dy);
+                if (distance < striker.radius + queen.radius) {
+                    let angle = Math.atan2(dy, dx); let speed = Math.hypot(striker.vx, striker.vy);
+                    queen.vx = Math.cos(angle) * speed * 1.5; queen.vy = Math.sin(angle) * speed * 1.5;
+                    striker.vx *= -0.2; striker.vy *= -0.2;
+                }
+
+                pockets.forEach(p => { if (Math.hypot(queen.x - p.x, queen.y - p.y) < p.radius) { handleWin(); } });
+
+                if (lastShooter === userEmail) {
+                    if (isMoving) {
+                        wasMoving = true;
+                    } else if (wasMoving && !isMoving) {
+                        connection.invoke("SyncPositions", userEmail, striker.x, striker.y, queen.x, queen.y).catch(()=>{});
+                        wasMoving = false;
+                    }
+                }
+            }
+
+            // Aiming Line (Dotted Line)
+            if (isDragging) {
+                ctx.beginPath(); 
+                ctx.moveTo(striker.x, striker.y); 
+                ctx.lineTo(striker.x + (dragStartX - mouseX), striker.y + (dragStartY - mouseY));
+                ctx.strokeStyle = '#ffffff'; 
+                ctx.lineWidth = 2; 
+                ctx.setLineDash([5, 5]); 
+                ctx.stroke(); 
+                ctx.setLineDash([]);
+            }
+
+            if(gameActive) { ctx.beginPath(); ctx.arc(queen.x, queen.y, queen.radius, 0, Math.PI * 2); ctx.fillStyle = queen.color; ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke(); }
+            ctx.beginPath(); ctx.arc(striker.x, striker.y, striker.radius, 0, Math.PI * 2); ctx.fillStyle = striker.color; ctx.fill(); ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.stroke();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
