@@ -14,7 +14,19 @@
         .btn-green { background-color: #00ff88; color: black; }
         .btn-green:hover { background-color: #00cc6a; }
         .hidden { display: none; }
-        canvas { background-color: #e6c28a; border-radius: 5px; border: 15px solid #4a2511; box-shadow: 0 0 20px rgba(0,255,136,0.2); cursor: crosshair; margin-top: 15px; touch-action: none; max-width: 100%; height: auto;}
+        
+        /* --- खऱ्या लाकडी बोर्डचा फील (New CSS) --- */
+        canvas { 
+            background: radial-gradient(#e6c28a, #cda171); /* लाकडी रंग */
+            border-radius: 10px; 
+            border: 25px solid #4a2511; /* जाड लाकडी बॉर्डर */
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5), 0 0 20px rgba(0,255,136,0.2); /* बोर्डच्या आतली सावली */
+            cursor: crosshair; 
+            margin-top: 15px; 
+            touch-action: none; 
+            max-width: 100%; 
+            height: auto;
+        }
     </style>
 </head>
 <body>
@@ -48,7 +60,6 @@
         let lastShooter = ""; 
         let wasMoving = false; 
 
-        // --- नवीन ऑटो-रजिस्टर वाला स्मार्ट लॉगिन कोड ---
         async function loginUser() {
             const email = document.getElementById("emailInput").value || userEmail;
             const password = document.getElementById("passwordInput").value || "Secret@123";
@@ -62,14 +73,11 @@
                     body: JSON.stringify({ Email: email, PasswordHash: password })
                 });
 
-                // जर अकाउंट Render ने डिलीट केलं असेल, तर आपण ऑटो-रजिस्टर करू!
                 if (!response.ok) {
                     await fetch(`${API_BASE_URL}/User/register`, {
                         method: "POST", headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ Email: email, PasswordHash: password })
                     });
-                    
-                    // रजिस्टर झाल्यावर परत लॉगिनचा प्रयत्न
                     response = await fetch(`${API_BASE_URL}/User/login`, {
                         method: "POST", headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ Email: email, PasswordHash: password })
@@ -110,8 +118,8 @@
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        let striker = { x: 200, y: 320, radius: 18, vx: 0, vy: 0, color: '#ffffff' };
-        let queen = { x: 200, y: 200, radius: 13, vx: 0, vy: 0, color: '#ff2a2a' };
+        let striker = { x: 200, y: 330, radius: 18, vx: 0, vy: 0, color: '#f0f0f0' };
+        let queen = { x: 200, y: 200, radius: 14, vx: 0, vy: 0, color: '#e63946' };
         let pockets = [ { x: 20, y: 20, radius: 25 }, { x: 380, y: 20, radius: 25 }, { x: 20, y: 380, radius: 25 }, { x: 380, y: 380, radius: 25 } ];
 
         let isDragging = false; 
@@ -145,66 +153,35 @@
         canvas.addEventListener("mousedown", (event) => {
             if(!gameActive) return;
             let pos = getMousePos(event);
-            
             if (Math.hypot(pos.x - striker.x, pos.y - striker.y) <= striker.radius + 15) {
-                isDragging = true; 
-                dragStartX = pos.x; 
-                dragStartY = pos.y;
-                mouseX = pos.x;
-                mouseY = pos.y;
+                isDragging = true; dragStartX = pos.x; dragStartY = pos.y; mouseX = pos.x; mouseY = pos.y;
             }
         });
-
         canvas.addEventListener("mousemove", (event) => {
-            if (isDragging) {
-                let pos = getMousePos(event);
-                mouseX = pos.x; 
-                mouseY = pos.y;
-            }
+            if (isDragging) { let pos = getMousePos(event); mouseX = pos.x; mouseY = pos.y; }
         });
-
         canvas.addEventListener("mouseup", async () => {
             if (isDragging && gameActive) {
                 isDragging = false;
-                let powerMultiplier = 0.2; 
+                let powerMultiplier = 0.22; // शॉटची ताकद थोडी वाढवली
                 let velocityX = (dragStartX - mouseX) * powerMultiplier;
                 let velocityY = (dragStartY - mouseY) * powerMultiplier;
-                
                 if(Math.abs(velocityX) < 0.5 && Math.abs(velocityY) < 0.5) return;
-
-                lastShooter = userEmail;
-                striker.vx = velocityX; 
-                striker.vy = velocityY;
-                
+                lastShooter = userEmail; striker.vx = velocityX; striker.vy = velocityY;
                 try { await connection.invoke("ShootStriker", userEmail, velocityX, velocityY); } catch (err) {}
             }
         });
 
-        // --- Mobile Touch Support ---
         canvas.addEventListener("touchstart", function (e) {
-            e.preventDefault(); 
-            var touch = e.touches[0];
-            var mouseEvent = new MouseEvent("mousedown", {
-                clientX: touch.clientX,
-                clientY: touch.clientY
-            });
-            canvas.dispatchEvent(mouseEvent);
+            e.preventDefault(); var touch = e.touches[0];
+            canvas.dispatchEvent(new MouseEvent("mousedown", { clientX: touch.clientX, clientY: touch.clientY }));
         }, { passive: false });
-
         canvas.addEventListener("touchmove", function (e) {
-            e.preventDefault();
-            var touch = e.touches[0];
-            var mouseEvent = new MouseEvent("mousemove", {
-                clientX: touch.clientX,
-                clientY: touch.clientY
-            });
-            canvas.dispatchEvent(mouseEvent);
+            e.preventDefault(); var touch = e.touches[0];
+            canvas.dispatchEvent(new MouseEvent("mousemove", { clientX: touch.clientX, clientY: touch.clientY }));
         }, { passive: false });
-
         canvas.addEventListener("touchend", function (e) {
-            e.preventDefault();
-            var mouseEvent = new MouseEvent("mouseup", {});
-            canvas.dispatchEvent(mouseEvent);
+            e.preventDefault(); canvas.dispatchEvent(new MouseEvent("mouseup", {}));
         }, { passive: false });
 
         async function handleWin() {
@@ -222,7 +199,7 @@
             }
             setTimeout(() => {
                 queen.x = 200; queen.y = 200; queen.vx = 0; queen.vy = 0;
-                striker.x = 200; striker.y = 320; striker.vx = 0; striker.vy = 0;
+                striker.x = 200; striker.y = 330; striker.vx = 0; striker.vy = 0;
                 gameActive = true;
             }, 3000);
         }
@@ -230,21 +207,37 @@
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            pockets.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fillStyle = '#222'; ctx.fill(); });
-            ctx.beginPath(); ctx.arc(200, 200, 40, 0, Math.PI * 2); ctx.strokeStyle = '#4a2511'; ctx.lineWidth = 2; ctx.stroke();
+            // --- 1. खऱ्या कॅरम बोर्डची डिझाईन (Baselines & Center) ---
+            ctx.strokeStyle = '#222'; ctx.lineWidth = 1;
+            ctx.strokeRect(60, 60, 280, 280); // बाहेरची चौकट
+            ctx.strokeRect(65, 65, 270, 270); // आतली चौकट
+
+            // सेंटर डिझाईन
+            ctx.beginPath(); ctx.arc(200, 200, 45, 0, Math.PI * 2); ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.beginPath(); ctx.arc(200, 200, 15, 0, Math.PI * 2); ctx.strokeStyle = '#e63946'; ctx.lineWidth = 2; ctx.stroke();
+
+            // Pockets (खड्डे) - कॉर्नर्सला काळं जाळीदार डिझाईन
+            pockets.forEach(p => { 
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fillStyle = '#111'; ctx.fill(); 
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.radius - 2, 0, Math.PI * 2); ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.stroke();
+            });
 
             if (gameActive) {
                 let isMoving = (striker.vx !== 0 || striker.vy !== 0 || queen.vx !== 0 || queen.vy !== 0);
 
                 striker.x += striker.vx; striker.y += striker.vy; queen.x += queen.vx; queen.y += queen.vy;
-                striker.vx *= 0.98; striker.vy *= 0.98; queen.vx *= 0.98; queen.vy *= 0.98;
+                
+                // पावडर लावल्यासारखं घर्षण (Friction - 0.985)
+                striker.vx *= 0.985; striker.vy *= 0.985; queen.vx *= 0.985; queen.vy *= 0.985;
 
-                if(Math.abs(striker.vx) < 0.1) striker.vx = 0; if(Math.abs(striker.vy) < 0.1) striker.vy = 0;
-                if(Math.abs(queen.vx) < 0.1) queen.vx = 0; if(Math.abs(queen.vy) < 0.1) queen.vy = 0;
+                // सोंगट्या पूर्ण थांबवण्यासाठी
+                if(Math.abs(striker.vx) < 0.15) striker.vx = 0; if(Math.abs(striker.vy) < 0.15) striker.vy = 0;
+                if(Math.abs(queen.vx) < 0.15) queen.vx = 0; if(Math.abs(queen.vy) < 0.15) queen.vy = 0;
 
                 [striker, queen].forEach(obj => {
-                    if (obj.x - obj.radius < 0 || obj.x + obj.radius > canvas.width) { obj.vx *= -1; obj.x = Math.max(obj.radius, Math.min(obj.x, canvas.width - obj.radius)); }
-                    if (obj.y - obj.radius < 0 || obj.y + obj.radius > canvas.height) { obj.vy *= -1; obj.y = Math.max(obj.radius, Math.min(obj.y, canvas.height - obj.radius)); }
+                    // भिंतीवर आदळल्यावर बाऊन्स (Restitution - 0.9 म्हणजे थोडी ताकद कमी होते)
+                    if (obj.x - obj.radius < 0 || obj.x + obj.radius > canvas.width) { obj.vx *= -0.9; obj.x = Math.max(obj.radius, Math.min(obj.x, canvas.width - obj.radius)); }
+                    if (obj.y - obj.radius < 0 || obj.y + obj.radius > canvas.height) { obj.vy *= -0.9; obj.y = Math.max(obj.radius, Math.min(obj.y, canvas.height - obj.radius)); }
                 });
 
                 let dx = queen.x - striker.x; let dy = queen.y - striker.y; let distance = Math.hypot(dx, dy);
@@ -257,28 +250,31 @@
                 pockets.forEach(p => { if (Math.hypot(queen.x - p.x, queen.y - p.y) < p.radius) { handleWin(); } });
 
                 if (lastShooter === userEmail) {
-                    if (isMoving) {
-                        wasMoving = true;
-                    } else if (wasMoving && !isMoving) {
+                    if (isMoving) { wasMoving = true; } 
+                    else if (wasMoving && !isMoving) {
                         connection.invoke("SyncPositions", userEmail, striker.x, striker.y, queen.x, queen.y).catch(()=>{});
                         wasMoving = false;
                     }
                 }
             }
 
+            // Aiming Line 
             if (isDragging) {
-                ctx.beginPath(); 
-                ctx.moveTo(striker.x, striker.y); 
+                ctx.beginPath(); ctx.moveTo(striker.x, striker.y); 
                 ctx.lineTo(striker.x + (dragStartX - mouseX), striker.y + (dragStartY - mouseY));
-                ctx.strokeStyle = '#ffffff'; 
-                ctx.lineWidth = 2; 
-                ctx.setLineDash([5, 5]); 
-                ctx.stroke(); 
-                ctx.setLineDash([]);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'; ctx.lineWidth = 3; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
             }
 
-            if(gameActive) { ctx.beginPath(); ctx.arc(queen.x, queen.y, queen.radius, 0, Math.PI * 2); ctx.fillStyle = queen.color; ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke(); }
-            ctx.beginPath(); ctx.arc(striker.x, striker.y, striker.radius, 0, Math.PI * 2); ctx.fillStyle = striker.color; ctx.fill(); ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.stroke();
+            // राणी (Queen)
+            if(gameActive) { 
+                ctx.beginPath(); ctx.arc(queen.x, queen.y, queen.radius, 0, Math.PI * 2); ctx.fillStyle = queen.color; ctx.fill(); 
+                ctx.beginPath(); ctx.arc(queen.x, queen.y, queen.radius - 4, 0, Math.PI * 2); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+            }
+
+            // स्ट्राईकर (Striker - खऱ्यासारखा डिझाईन)
+            ctx.beginPath(); ctx.arc(striker.x, striker.y, striker.radius, 0, Math.PI * 2); ctx.fillStyle = striker.color; ctx.fill(); 
+            ctx.beginPath(); ctx.arc(striker.x, striker.y, striker.radius - 3, 0, Math.PI * 2); ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.beginPath(); ctx.arc(striker.x, striker.y, striker.radius - 8, 0, Math.PI * 2); ctx.strokeStyle = '#ff2a2a'; ctx.lineWidth = 2; ctx.stroke();
 
             requestAnimationFrame(gameLoop);
         }
