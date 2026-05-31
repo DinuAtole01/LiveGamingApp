@@ -48,15 +48,33 @@
         let lastShooter = ""; 
         let wasMoving = false; 
 
+        // --- नवीन ऑटो-रजिस्टर वाला स्मार्ट लॉगिन कोड ---
         async function loginUser() {
             const email = document.getElementById("emailInput").value || userEmail;
             const password = document.getElementById("passwordInput").value || "Secret@123";
+            const btn = document.getElementById("loginBox").querySelector("button");
 
             try {
-                const response = await fetch(`${API_BASE_URL}/User/login`, {
+                btn.innerText = "Connecting to Cloud... ☁️"; 
+
+                let response = await fetch(`${API_BASE_URL}/User/login`, {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ Email: email, PasswordHash: password })
                 });
+
+                // जर अकाउंट Render ने डिलीट केलं असेल, तर आपण ऑटो-रजिस्टर करू!
+                if (!response.ok) {
+                    await fetch(`${API_BASE_URL}/User/register`, {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ Email: email, PasswordHash: password })
+                    });
+                    
+                    // रजिस्टर झाल्यावर परत लॉगिनचा प्रयत्न
+                    response = await fetch(`${API_BASE_URL}/User/login`, {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ Email: email, PasswordHash: password })
+                    });
+                }
 
                 if (response.ok) {
                     userEmail = email;
@@ -69,8 +87,14 @@
                     if(document.getElementById("connectionStatus").innerText !== "Online 🟢") {
                         startSignalR();
                     }
+                } else {
+                    alert("Cloud Server is waking up! Please wait 30 seconds and try again. ⏳");
+                    btn.innerText = "Enter Arena";
                 }
-            } catch (error) {}
+            } catch (error) {
+                alert("Server is sleeping! 😴 Click again in 10 seconds to wake it up.");
+                btn.innerText = "Enter Arena";
+            }
         }
 
         const connection = new signalR.HubConnectionBuilder().withUrl("https://live-gaming-backend.onrender.com/gamehub").build();
@@ -110,7 +134,6 @@
 
         function getMousePos(evt) {
             const rect = canvas.getBoundingClientRect();
-            // Scale touch/mouse coordinates to canvas actual size
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
             return {
@@ -157,7 +180,7 @@
             }
         });
 
-        // --- Mobile Touch Support (टचला माऊसमध्ये कन्व्हर्ट करणे) ---
+        // --- Mobile Touch Support ---
         canvas.addEventListener("touchstart", function (e) {
             e.preventDefault(); 
             var touch = e.touches[0];
